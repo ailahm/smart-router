@@ -70,13 +70,10 @@ class KVEventSubscriber:
         self._loop = None
 
     def add_endpoints(self, endpoints: Iterable[WorkerEventEndpoint]) -> None:
-        new_endpoints = [
-            endpoint for endpoint in endpoints
-            if endpoint.worker_id not in self._endpoints_by_worker
-        ]
-        if not new_endpoints:
+        endpoints = list(endpoints)
+        if not endpoints:
             return
-        self._call_on_loop(lambda: self._add_endpoints_now(new_endpoints))
+        self._call_on_loop(lambda: self._add_endpoints_now(endpoints))
 
     def remove_workers(self, worker_ids: Iterable[str]) -> None:
         worker_ids = list(worker_ids)

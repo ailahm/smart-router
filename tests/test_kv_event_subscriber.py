@@ -43,3 +43,21 @@ def test_kv_event_subscriber_can_add_and_remove_workers_after_start():
         await subscriber.stop()
 
     asyncio.run(run_test())
+
+
+def test_kv_event_subscriber_readds_worker_after_pending_remove():
+    async def run_test():
+        endpoint = WorkerEventEndpoint("worker-0", "inproc://worker-0")
+        subscriber = KVEventSubscriber(KVCacheState(), [endpoint])
+        subscriber._loop = asyncio.get_running_loop()
+
+        subscriber.remove_workers(["worker-0"])
+        subscriber.add_endpoints([endpoint])
+        await asyncio.sleep(0)
+
+        assert [endpoint.worker_id for endpoint in subscriber.endpoints] == [
+            "worker-0"
+        ]
+        assert subscriber._endpoints_by_worker["worker-0"] == endpoint
+
+    asyncio.run(run_test())
