@@ -10,4 +10,4 @@ class UpstreamHTTPClientConfig:
     pool_timeout_secs: float = 1.0
     max_connections: int = 1024
     max_keepalive_connections: int = 256
-    keepalive_expiry_secs: float = 30.0
+    keepalive_expiry_secs: float = 4.0

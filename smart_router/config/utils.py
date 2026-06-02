@@ -134,7 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
     upstream_group.add_argument(
         "--upstream-keepalive-expiry-sec",
         type=float,
-        default=30.0,
+        default=4.0,
         help="Seconds before idle upstream HTTP keep-alive connections expire.",
     )
 
