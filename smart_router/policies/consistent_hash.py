@@ -1,4 +1,5 @@
 import bisect
+import logging
 import struct
 import threading
 from typing import List, Optional
@@ -6,6 +7,9 @@ from typing import List, Optional
 from smart_router.config import PolicyConfig
 from smart_router.worker import Worker
 from smart_router.policies.policy import Policy
+from smart_router.policies.routing_key import extract_routing_key
+
+logger = logging.getLogger(__name__)
 
 VIRTUAL_NODES_PER_WORKER = 160
 HASH_SEED = 4193360111
@@ -176,9 +180,6 @@ class ConsistentHashPolicy(Policy):
         headers: Optional[dict] = None,
         request_body: Optional[dict] = None,
     ) -> Optional[Worker]:
-        _ = headers
-        _ = request_body
-
         if not workers:
             return None
 
@@ -186,7 +187,12 @@ class ConsistentHashPolicy(Policy):
             return workers[0]
 
         self.update_hash_ring(workers)
-        key = request_text or ""
+        key, key_source = extract_routing_key(
+            request_text=request_text,
+            headers=headers,
+            request_body=request_body,
+            stable_hash_fn=stable_hash,
+        )
         h = self.fbi_hash(key)
 
         with self.lock:
@@ -199,4 +205,12 @@ class ConsistentHashPolicy(Policy):
         if idx == len(sorted_keys):
             idx = 0
 
-        return hash_ring[sorted_keys[idx]]
+        selected_worker = hash_ring[sorted_keys[idx]]
+        logger.debug(
+            "[POLICY: %s] key_source=%s key_hash=%016x selected=%s",
+            self.name(),
+            key_source,
+            stable_hash(key),
+            selected_worker.url(),
+        )
+        return selected_worker
