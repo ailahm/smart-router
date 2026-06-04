@@ -286,6 +286,7 @@ class VllmRoutes:
             request_text=request_text,
             request_type=RequestType.SCHEDULE,
             headers=headers,
+            request_body=body,
             request_token_ids=request_token_ids,
         )
         # send request to engine using engine_client

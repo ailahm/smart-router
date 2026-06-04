@@ -1,4 +1,5 @@
 import logging 
+import inspect
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from smart_router.worker import Worker
@@ -20,6 +21,26 @@ class Policy(ABC):
     def name(self) -> str:
         """Return the name of the policy."""
         raise NotImplementedError("name method must be implemented by subclasses")
+
+
+def select_worker_with_context(
+    policy: Policy,
+    workers: List[Worker],
+    **kwargs,
+) -> Optional[Worker]:
+    """Call a policy with only the schedule context it declares."""
+    parameters = inspect.signature(policy.select_worker).parameters
+    accepts_kwargs = any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
+    if accepts_kwargs:
+        return policy.select_worker(workers, **kwargs)
+
+    supported_kwargs = {
+        key: value for key, value in kwargs.items() if key in parameters
+    }
+    return policy.select_worker(workers, **supported_kwargs)
     
 
 def get_policy_config(config: PolicyConfig) -> Policy:
@@ -36,6 +57,10 @@ def get_policy_config(config: PolicyConfig) -> Policy:
     elif policy_name == "consistent_hash":
         from smart_router.policies.consistent_hash import ConsistentHashPolicy
         return ConsistentHashPolicy(config)
+
+    elif policy_name == "rendezvous_hash":
+        from smart_router.policies.rendezvous_hash import RendezvousHashPolicy
+        return RendezvousHashPolicy(config)
     
     elif policy_name == "power_of_two":
         from smart_router.policies.power_of_two import PowerOfTwoPolicy

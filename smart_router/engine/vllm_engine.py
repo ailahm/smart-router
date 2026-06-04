@@ -9,7 +9,7 @@ from smart_router.cache.vllm_kv_event_subscriber import (
 )
 from smart_router.engine.engine import Engine, EngineRequest
 from smart_router.config import SmartRouterConfig
-from smart_router.policies import Policy, get_policy_config
+from smart_router.policies import Policy, get_policy_config, select_worker_with_context
 from smart_router.worker import Worker, WorkerRegistry, WorkerType
 from smart_router.worker.factory import register_workers_for_url
 
@@ -61,6 +61,7 @@ class VLLMEngine(Engine):
         self,
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]] = None,
         request_token_ids: Optional[List[int]] = None,
         schedule_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[Worker]:
@@ -70,6 +71,7 @@ class VLLMEngine(Engine):
             workers,
             request_text=request_text,
             headers=headers,
+            request_body=request_body,
             request_token_ids=request_token_ids,
             schedule_context=schedule_context,
         )
@@ -79,6 +81,7 @@ class VLLMEngine(Engine):
         self,
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]] = None,
         request_token_ids: Optional[List[int]] = None,
         schedule_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[Worker]:
@@ -88,6 +91,7 @@ class VLLMEngine(Engine):
             workers,
             request_text=request_text,
             headers=headers,
+            request_body=request_body,
             request_token_ids=request_token_ids,
             schedule_context=schedule_context,
         )
@@ -99,19 +103,27 @@ class VLLMEngine(Engine):
         workers: List[Worker],
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]],
         request_token_ids: Optional[List[int]],
         schedule_context: Optional[Dict[str, Any]],
     ) -> Optional[Worker]:
         if self._uses_kv_event_policy(policy):
-            return policy.select_worker(
+            return select_worker_with_context(
+                policy,
                 workers,
                 request_text=request_text,
                 headers=headers,
+                request_body=request_body,
                 request_token_ids=request_token_ids,
                 kv_match_scores=(schedule_context or {}).get("kv_match_scores"),
             )
-        return policy.select_worker(
-            workers, request_text=request_text, headers=headers)
+        return select_worker_with_context(
+            policy,
+            workers,
+            request_text=request_text,
+            headers=headers,
+            request_body=request_body,
+        )
 
     def _uses_kv_event_policy(self, policy: Policy) -> bool:
         return callable(getattr(policy, "set_kv_cache_state", None))

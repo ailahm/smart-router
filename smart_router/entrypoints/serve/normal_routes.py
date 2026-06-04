@@ -90,7 +90,12 @@ class NormalRoutes:
             stream: bool,
     ) -> Response:
         # 1. Schedule a worker via engine
-        worker_url, worker_rank = await self._schedule_worker(request, request_text, headers)
+        worker_url, worker_rank = await self._schedule_worker(
+            request,
+            request_text,
+            headers,
+            body,
+        )
         if worker_url is None:
             return JSONResponse({"error": "No available workers"}, status_code=503)
 
@@ -109,7 +114,11 @@ class NormalRoutes:
         )
 
     async def _schedule_worker(
-            self, request: Request, request_text: str, headers: Dict[str, str]
+            self,
+            request: Request,
+            request_text: str,
+            headers: Dict[str, str],
+            request_body: Dict[str, Any],
     ) -> tuple[str | None, int]:
         """Schedule a single worker via the engine. Returns (url, rank) or (None, -1)."""
         engine_request = EngineRequest(
@@ -118,6 +127,7 @@ class NormalRoutes:
             request_text=request_text,
             request_type=RequestType.SCHEDULE,
             headers=headers,
+            request_body=request_body,
         )
         fut = await request.app.state.engine_client.send_request(engine_request)
         try:

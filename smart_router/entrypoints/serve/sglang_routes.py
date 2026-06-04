@@ -134,7 +134,12 @@ class SGLangRoutes:
             endpoint_path,
         )
         # 1. Schedule prefill and decode workers via engine
-        schedule_result = await self._schedule_workers(request, request_text, headers)
+        schedule_result = await self._schedule_workers(
+            request,
+            request_text,
+            headers,
+            body,
+        )
         if isinstance(schedule_result, Response):
             return schedule_result
 
@@ -182,7 +187,11 @@ class SGLangRoutes:
             )
 
     async def _schedule_workers(
-            self, request: Request, request_text: str, headers: Dict[str, str]
+            self,
+            request: Request,
+            request_text: str,
+            headers: Dict[str, str],
+            request_body: Dict[str, Any],
     ) -> Dict[str, Any] | Response:
         """Schedule prefill and decode workers via the engine."""
         logger.debug("SGLang PD scheduling workers for request")
@@ -192,6 +201,7 @@ class SGLangRoutes:
             request_text=request_text,
             request_type=RequestType.SCHEDULE,
             headers=headers,
+            request_body=request_body,
         )
         fut = await request.app.state.engine_client.send_request(engine_request)
         try:

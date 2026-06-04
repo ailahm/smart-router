@@ -8,6 +8,7 @@ SUPPORT_POLICIES = [
     "prefix_aware",
     "kv_event_prefix_aware",
     "consistent_hash",
+    "rendezvous_hash",
     "minimum_load",
 ]
 
