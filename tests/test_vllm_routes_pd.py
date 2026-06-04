@@ -232,6 +232,7 @@ def test_non_stream_completions_route_uses_completions_backend_path():
         "remote_engine_id": "prefill-engine"
     }
     assert engine_client.requests[0].request_text == "hello"
+    assert engine_client.requests[0].request_body == body
 
 
 def test_stream_request_forwards_kv_params_without_prompt_token_ids():

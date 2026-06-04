@@ -8,6 +8,7 @@ SUPPORT_POLICIES = [
     "prefix_aware",
     "kv_event_prefix_aware",
     "consistent_hash",
+    "rendezvous_hash",
     "minimum_load",
 ]
 
@@ -134,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     upstream_group.add_argument(
         "--upstream-keepalive-expiry-sec",
         type=float,
-        default=30.0,
+        default=4.0,
         help="Seconds before idle upstream HTTP keep-alive connections expire.",
     )
 

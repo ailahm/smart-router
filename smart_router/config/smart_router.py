@@ -158,7 +158,7 @@ def build_config(args: Namespace) -> SmartRouterConfig:
         max_keepalive_connections=getattr(
             args, "upstream_max_keepalive_connections", 256
         ),
-        keepalive_expiry_secs=getattr(args, "upstream_keepalive_expiry_sec", 30.0),
+        keepalive_expiry_secs=getattr(args, "upstream_keepalive_expiry_sec", 4.0),
     )
     _validate_upstream_http_client_config(upstream_http_client_config)
 

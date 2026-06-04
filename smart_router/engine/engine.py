@@ -36,6 +36,7 @@ class EngineRequest:
     # request_type: schedule
     request_text: str = field(default="")
     headers: Dict[str, str] = field(default_factory=dict)
+    request_body: Dict[str, Any] = field(default_factory=dict)
     request_token_ids: List[int] = field(default_factory=list)
     # request_type: release
     worker_url: str = field(default="")
@@ -50,6 +51,7 @@ class EngineRequest:
             request_type=data["request_type"],
             request_text=data.get("request_text", ""),
             headers=data.get("headers", {}),
+            request_body=data.get("request_body", {}),
             request_token_ids=data.get("request_token_ids", []),
             worker_url=data.get("worker_url", ""),
             worker_rank=data.get("worker_rank", -1),
@@ -62,6 +64,7 @@ class EngineRequest:
             "request_type": self.request_type,
             "request_text": self.request_text,
             "headers": self.headers,
+            "request_body": self.request_body,
             "request_token_ids": self.request_token_ids,
             "worker_url": self.worker_url,
             "worker_rank": self.worker_rank,
@@ -234,6 +237,7 @@ class Engine:
                 self.schedule_prefill,
                 request_text=request.request_text,
                 headers=request.headers,
+                request_body=request.request_body,
                 request_token_ids=request.request_token_ids,
                 schedule_context=schedule_context,
             )
@@ -241,6 +245,7 @@ class Engine:
                 self.schedule_decode,
                 request_text=request.request_text,
                 headers=request.headers,
+                request_body=request.request_body,
                 request_token_ids=request.request_token_ids,
                 schedule_context=schedule_context,
             )
@@ -287,6 +292,7 @@ class Engine:
         *,
         request_text: str,
         headers: Dict[str, str],
+        request_body: Dict[str, Any],
         request_token_ids: List[int],
         schedule_context: Optional[Dict[str, Any]],
     ) -> Optional[Worker]:
@@ -295,6 +301,8 @@ class Engine:
             "request_text": request_text,
             "headers": headers,
         }
+        if "request_body" in parameters:
+            kwargs["request_body"] = request_body
         if "request_token_ids" in parameters:
             kwargs["request_token_ids"] = request_token_ids
         if "schedule_context" in parameters:
@@ -540,6 +548,7 @@ class Engine:
         self,
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]] = None,
         request_token_ids: Optional[List[int]] = None,
         schedule_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[Worker]:
@@ -549,6 +558,7 @@ class Engine:
         self,
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]] = None,
         request_token_ids: Optional[List[int]] = None,
         schedule_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[Worker]:

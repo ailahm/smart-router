@@ -1,6 +1,29 @@
 import asyncio
 
 from smart_router.engine.engine import Engine
+from smart_router.engine.engine import EngineRequest, RequestType
+
+
+def test_engine_request_request_body_round_trips_and_defaults_empty():
+    request = EngineRequest(
+        request_id="req-1",
+        identity="test",
+        request_type=RequestType.SCHEDULE,
+        request_body={"session_params": {"session_id": "session-a"}},
+    )
+
+    restored = EngineRequest.from_dict(request.to_dict())
+
+    assert restored.request_body == {"session_params": {"session_id": "session-a"}}
+
+    legacy = EngineRequest.from_dict(
+        {
+            "request_id": "req-legacy",
+            "identity": "test",
+            "request_type": RequestType.SCHEDULE,
+        }
+    )
+    assert legacy.request_body == {}
 
 
 def test_engine_run_starts_core_loops_and_can_be_cancelled():

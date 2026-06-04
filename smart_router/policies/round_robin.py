@@ -28,7 +28,10 @@ class RoundRobinPolicy(Policy):
         workers: List[Worker],
         request_text: Optional[str] = None,
         headers: Optional[dict] = None,
+        request_body: Optional[dict] = None,
     ) -> Optional[Worker]:
+        _ = request_body
+
         if len(workers) == 0:
             return None
 

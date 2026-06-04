@@ -474,3 +474,22 @@ def test_prefill_decode_policy_cli_uses_explicit_prefixed_values():
     assert config.decode_policy_config.policy == "prefix_aware"
     assert config.decode_policy_config.cache_threshold == 0.2
     assert config.decode_policy_config.prefix_cache_eviction_interval_secs == 2.5
+
+
+def test_cli_accepts_rendezvous_hash_policy_names():
+    args = build_parser().parse_args(
+        [
+            "--policy",
+            "rendezvous_hash",
+            "--prefill-policy",
+            "rendezvous_hash",
+            "--decode-policy",
+            "rendezvous_hash",
+        ]
+    )
+
+    config = build_config(args)
+
+    assert config.policy_config.policy == "rendezvous_hash"
+    assert config.prefill_policy_config.policy == "rendezvous_hash"
+    assert config.decode_policy_config.policy == "rendezvous_hash"
