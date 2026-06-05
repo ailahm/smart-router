@@ -136,6 +136,14 @@ def test_normal_stream_releases_worker_after_stream_body_is_consumed():
     streamed_body = asyncio.run(run_test())
 
     assert streamed_body == b"".join(chunks)
+    schedule_requests = [
+        req for req in engine_client.requests if req.request_type == RequestType.SCHEDULE
+    ]
+    assert schedule_requests[0].request_body == {
+        "model": "demo-model",
+        "messages": [{"role": "user", "content": "hello"}],
+        "stream": True,
+    }
     release_requests = _release_requests(engine_client)
     assert [(req.worker_url, req.worker_rank) for req in release_requests] == [
         ("http://worker", 3)
@@ -169,6 +177,14 @@ def test_normal_non_stream_releases_worker_before_returning_response():
     response = asyncio.run(run_test())
 
     assert response.status_code == 200
+    schedule_requests = [
+        req for req in engine_client.requests if req.request_type == RequestType.SCHEDULE
+    ]
+    assert schedule_requests[0].request_body == {
+        "model": "demo-model",
+        "prompt": "hello",
+        "stream": False,
+    }
     release_requests = _release_requests(engine_client)
     assert [(req.worker_url, req.worker_rank) for req in release_requests] == [
         ("http://worker", 3)

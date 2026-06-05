@@ -32,11 +32,13 @@ class KVEventPrefixAwarePolicy(Policy):
         workers: List[Worker],
         request_text: Optional[str] = None,
         headers: Optional[dict] = None,
+        request_body: Optional[dict] = None,
         request_token_ids: Optional[list[int]] = None,
         kv_match_scores: Optional[dict[str, int]] = None,
     ) -> Optional[Worker]:
         _ = request_text
         _ = headers
+        _ = request_body
 
         if not workers:
             return None

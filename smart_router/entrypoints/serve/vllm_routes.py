@@ -16,7 +16,7 @@ from smart_router.engine.engine import (
     EngineWorkersResponse,
     RequestType,
 )
-from smart_router.config.smart_router import UpstreamHTTPClientConfig
+from smart_router.config.upstream_http import UpstreamHTTPClientConfig
 from smart_router.entrypoints.serve.http_client import build_upstream_http_client
 from smart_router.tokenization import RouterTokenizerManager
 
@@ -286,6 +286,7 @@ class VllmRoutes:
             request_text=request_text,
             request_type=RequestType.SCHEDULE,
             headers=headers,
+            request_body=body,
             request_token_ids=request_token_ids,
         )
         # send request to engine using engine_client

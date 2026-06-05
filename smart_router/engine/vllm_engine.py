@@ -9,7 +9,7 @@ from smart_router.cache.vllm_kv_event_subscriber import (
 )
 from smart_router.engine.engine import Engine, EngineRequest
 from smart_router.config import SmartRouterConfig
-from smart_router.policies import Policy, get_policy_config
+from smart_router.policies import Policy, get_policy_config, select_worker_with_context
 from smart_router.worker import Worker, WorkerRegistry, WorkerType
 from smart_router.worker.factory import register_workers_for_url
 
@@ -37,11 +37,11 @@ class VLLMEngine(Engine):
         self.kv_event_subscriber: Optional[KVEventSubscriber] = None
 
         # Initialize prefill workers.
-        for url in config.prefill_urls or []:
+        for url in config.prefill_worker_config.urls or []:
             register_workers_for_url(self.worker_registry, url, WorkerType.PREFILL, config)
 
         # Initialize decode workers.
-        for url in config.decode_urls or []:
+        for url in config.decode_worker_config.urls or []:
             register_workers_for_url(self.worker_registry, url, WorkerType.DECODE, config)
 
         self.configure_worker_discovery(config)
@@ -61,6 +61,7 @@ class VLLMEngine(Engine):
         self,
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]] = None,
         request_token_ids: Optional[List[int]] = None,
         schedule_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[Worker]:
@@ -70,6 +71,7 @@ class VLLMEngine(Engine):
             workers,
             request_text=request_text,
             headers=headers,
+            request_body=request_body,
             request_token_ids=request_token_ids,
             schedule_context=schedule_context,
         )
@@ -79,6 +81,7 @@ class VLLMEngine(Engine):
         self,
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]] = None,
         request_token_ids: Optional[List[int]] = None,
         schedule_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[Worker]:
@@ -88,6 +91,7 @@ class VLLMEngine(Engine):
             workers,
             request_text=request_text,
             headers=headers,
+            request_body=request_body,
             request_token_ids=request_token_ids,
             schedule_context=schedule_context,
         )
@@ -99,19 +103,27 @@ class VLLMEngine(Engine):
         workers: List[Worker],
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]],
         request_token_ids: Optional[List[int]],
         schedule_context: Optional[Dict[str, Any]],
     ) -> Optional[Worker]:
         if self._uses_kv_event_policy(policy):
-            return policy.select_worker(
+            return select_worker_with_context(
+                policy,
                 workers,
                 request_text=request_text,
                 headers=headers,
+                request_body=request_body,
                 request_token_ids=request_token_ids,
                 kv_match_scores=(schedule_context or {}).get("kv_match_scores"),
             )
-        return policy.select_worker(
-            workers, request_text=request_text, headers=headers)
+        return select_worker_with_context(
+            policy,
+            workers,
+            request_text=request_text,
+            headers=headers,
+            request_body=request_body,
+        )
 
     def _uses_kv_event_policy(self, policy: Policy) -> bool:
         return callable(getattr(policy, "set_kv_cache_state", None))
@@ -174,7 +186,7 @@ class VLLMEngine(Engine):
             if self.worker_discovery is not None:
                 await self.worker_discovery.sync_once()
 
-            if self.config.kv_events_enabled:
+            if self.config.kv_events_config.enabled:
                 endpoint_map = build_worker_event_endpoints(
                     self.config,
                     self.worker_registry.get_all(),

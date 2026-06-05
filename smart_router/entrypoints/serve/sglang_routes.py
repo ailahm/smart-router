@@ -14,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 
 from smart_router.engine.engine import EngineRequest, EngineResponse, RequestType
-from smart_router.config.smart_router import SmartRouterConfig
+from smart_router.config import SmartRouterConfig
 from smart_router.entrypoints.serve.http_client import build_upstream_http_client
 
 logger = logging.getLogger(__name__)
@@ -41,13 +41,13 @@ class SGLangRoutes:
 
     def __init__(self, config: SmartRouterConfig, http_client: Any | None = None):
         self.http_client = http_client or build_upstream_http_client(
-            getattr(config, "upstream_http_client_config", None)
+            config.upstream_http_client_config
         )
         # bootstrap_ports: one port per prefill URL, for KV cache bootstrap
-        self.bootstrap_ports = config.prefill_bootstrap_ports or []
-        self.prefill_urls = config.prefill_urls
-        self.prefill_intra_dp_size = config.prefill_intra_dp_size
-        self.decode_intra_dp_size = config.decode_intra_dp_size
+        self.bootstrap_ports = config.prefill_worker_config.bootstrap_ports or []
+        self.prefill_urls = config.prefill_worker_config.urls
+        self.prefill_intra_dp_size = config.prefill_worker_config.intra_dp_size
+        self.decode_intra_dp_size = config.decode_worker_config.intra_dp_size
 
     async def close(self) -> None:
         if hasattr(self.http_client, "aclose"):
@@ -134,7 +134,12 @@ class SGLangRoutes:
             endpoint_path,
         )
         # 1. Schedule prefill and decode workers via engine
-        schedule_result = await self._schedule_workers(request, request_text, headers)
+        schedule_result = await self._schedule_workers(
+            request,
+            request_text,
+            headers,
+            body,
+        )
         if isinstance(schedule_result, Response):
             return schedule_result
 
@@ -182,7 +187,11 @@ class SGLangRoutes:
             )
 
     async def _schedule_workers(
-            self, request: Request, request_text: str, headers: Dict[str, str]
+            self,
+            request: Request,
+            request_text: str,
+            headers: Dict[str, str],
+            request_body: Dict[str, Any],
     ) -> Dict[str, Any] | Response:
         """Schedule prefill and decode workers via the engine."""
         logger.debug("SGLang PD scheduling workers for request")
@@ -192,6 +201,7 @@ class SGLangRoutes:
             request_text=request_text,
             request_type=RequestType.SCHEDULE,
             headers=headers,
+            request_body=request_body,
         )
         fut = await request.app.state.engine_client.send_request(engine_request)
         try:

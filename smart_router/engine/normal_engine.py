@@ -1,10 +1,11 @@
 import asyncio
+import inspect
 import logging
 from typing import Any, Dict, List, Optional
 
 from smart_router.engine.engine import Engine, EngineResponse
 from smart_router.config import SmartRouterConfig
-from smart_router.policies import Policy, get_policy_config
+from smart_router.policies import Policy, get_policy_config, select_worker_with_context
 from smart_router.worker import BasicWorker, DPAwareWorker, Worker, WorkerRegistry, WorkerType
 from smart_router.worker.factory import register_workers_for_url
 
@@ -35,7 +36,7 @@ class NormalEngine(Engine):
         self.policy: Policy = get_policy_config(config.policy_config)
 
         # Initialize regular workers.
-        for url in config.worker_urls or []:
+        for url in config.worker_config.urls or []:
             register_workers_for_url(self.worker_registry, url, WorkerType.REGULAR, config)
 
         self.configure_worker_discovery(config)
@@ -46,6 +47,7 @@ class NormalEngine(Engine):
         self,
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]] = None,
         request_token_ids: Optional[List[int]] = None,
         schedule_context: Optional[Dict[str, Any]] = None,
     ) -> Worker:
@@ -56,22 +58,34 @@ class NormalEngine(Engine):
         self,
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]] = None,
         request_token_ids: Optional[List[int]] = None,
         schedule_context: Optional[Dict[str, Any]] = None,
     ) -> Worker:
         """Not used in normal mode."""
         raise NotImplementedError("NormalEngine does not support schedule_decode")
 
-    def schedule_worker(self, request_text: str, headers: Dict[str, str]) -> Optional[Worker]:
+    def schedule_worker(
+        self,
+        request_text: str,
+        headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Worker]:
         """Schedule a single worker for normal (non-PD) mode."""
         workers = self.worker_registry.get_healthy_by_type(WorkerType.REGULAR)
-        return self.policy.select_worker(workers, request_text=request_text, headers=headers)
+        return select_worker_with_context(
+            self.policy,
+            workers,
+            request_text=request_text,
+            headers=headers,
+            request_body=request_body,
+        )
 
     async def schedule_loop(self):
         while True:
             request = await self.waiting_queue.get()
             logger.debug(f"Processing normal schedule for request: {request.request_id}")
-            worker = self.schedule_worker(request.request_text, request.headers)
+            worker = self._call_schedule_worker(request)
             if worker is None:
                 resp = EngineResponse(
                     request_id=request.request_id,
@@ -97,6 +111,16 @@ class NormalEngine(Engine):
                 decode_rank=-1,
             )
             await self.send_response(request, resp.to_dict())
+
+    def _call_schedule_worker(self, request) -> Optional[Worker]:
+        parameters = inspect.signature(self.schedule_worker).parameters
+        kwargs = {
+            "request_text": request.request_text,
+            "headers": request.headers,
+        }
+        if "request_body" in parameters:
+            kwargs["request_body"] = request.request_body
+        return self.schedule_worker(**kwargs)
 
 
 def start_normal_engine(config: SmartRouterConfig, input_addr: str, output_addr: str) -> None:

@@ -30,8 +30,10 @@ class PrefixAwarePolicy(Policy):
         workers: List[Worker],
         request_text: Optional[str] = None,
         headers: Optional[dict] = None,
+        request_body: Optional[dict] = None,
     ) -> Optional[Worker]:
         _ = headers
+        _ = request_body
 
         if not workers:
             return None

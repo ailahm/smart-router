@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from smart_router.engine.engine import Engine
 from smart_router.config import SmartRouterConfig
-from smart_router.policies import Policy, get_policy_config
+from smart_router.policies import Policy, get_policy_config, select_worker_with_context
 from smart_router.worker import Worker, WorkerRegistry, WorkerType
 from smart_router.worker.factory import register_workers_for_url
 
@@ -36,11 +36,11 @@ class SglangEngine(Engine):
         self.decode_policy: Policy = get_policy_config(config.decode_policy_config)
 
         # Initialize prefill workers.
-        for url in config.prefill_urls or []:
+        for url in config.prefill_worker_config.urls or []:
             register_workers_for_url(self.worker_registry, url, WorkerType.PREFILL, config)
 
         # Initialize decode workers.
-        for url in config.decode_urls or []:
+        for url in config.decode_worker_config.urls or []:
             register_workers_for_url(self.worker_registry, url, WorkerType.DECODE, config)
 
         self.configure_worker_discovery(config)
@@ -51,14 +51,19 @@ class SglangEngine(Engine):
         self,
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]] = None,
         request_token_ids: Optional[List[int]] = None,
         schedule_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[Worker]:
         _ = request_token_ids
         _ = schedule_context
         workers = self.worker_registry.get_healthy_by_type(WorkerType.PREFILL)
-        prefill: Optional[Worker] = self.prefill_policy.select_worker(
-            workers, request_text=request_text, headers=headers
+        prefill: Optional[Worker] = select_worker_with_context(
+            self.prefill_policy,
+            workers,
+            request_text=request_text,
+            headers=headers,
+            request_body=request_body,
         )
         return prefill
 
@@ -66,14 +71,19 @@ class SglangEngine(Engine):
         self,
         request_text: str,
         headers: Dict[str, str],
+        request_body: Optional[Dict[str, Any]] = None,
         request_token_ids: Optional[List[int]] = None,
         schedule_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[Worker]:
         _ = request_token_ids
         _ = schedule_context
         workers = self.worker_registry.get_healthy_by_type(WorkerType.DECODE)
-        decode: Optional[Worker] = self.decode_policy.select_worker(
-            workers, request_text=request_text, headers=headers
+        decode: Optional[Worker] = select_worker_with_context(
+            self.decode_policy,
+            workers,
+            request_text=request_text,
+            headers=headers,
+            request_body=request_body,
         )
         return decode
 
