@@ -157,6 +157,7 @@ class KVCacheState:
                     self._worker_medium_blocks[worker_id][medium_name].discard(
                         block_hash)
                 self._block_owners[block_hash].discard(worker_id)
+                self._remove_unowned_block_locked(block_hash)
 
     def clear_worker(self, worker_id: str) -> None:
         with self._lock:
@@ -164,6 +165,7 @@ class KVCacheState:
             for blocks in worker_blocks.values():
                 for block_hash in blocks:
                     self._block_owners[block_hash].discard(worker_id)
+                    self._remove_unowned_block_locked(block_hash)
 
     def count_matched_tokens(self,
                              worker_id: str,
@@ -302,6 +304,25 @@ class KVCacheState:
                                                 tuple[int, ...]]:
         return (record.medium, record.lora_id, record.parent_block_hash,
                 record.block_size, record.token_ids)
+
+    def _remove_unowned_block_locked(self, block_hash: BlockHash) -> None:
+        owners = self._block_owners.get(block_hash)
+        if owners:
+            return
+
+        self._block_owners.pop(block_hash, None)
+        record = self._blocks.pop(block_hash, None)
+        if record is None:
+            return
+
+        key = self._token_key(record)
+        indexed_blocks = self._token_index.get(key)
+        if indexed_blocks is None:
+            return
+
+        indexed_blocks.discard(block_hash)
+        if not indexed_blocks:
+            self._token_index.pop(key, None)
 
 
 def normalize_batch(raw: Any) -> KVEventBatch:

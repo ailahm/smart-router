@@ -134,6 +134,52 @@ class VLLMEngine(Engine):
             if setter is not None:
                 setter(self.kv_cache_state)
 
+    def configure_worker_discovery(self, config) -> None:
+        discovery_config = getattr(config, "k8s_discovery_config", None)
+        if discovery_config is None or not discovery_config.enabled:
+            self.worker_discovery = None
+            return
+
+        from smart_router.discovery import K8SPodDiscovery
+
+        self.worker_discovery = K8SPodDiscovery(
+            config,
+            self.worker_registry,
+            on_workers_added=self._handle_discovered_workers_added,
+            on_workers_removed=self._handle_discovered_workers_removed,
+        )
+
+    def _handle_discovered_workers_added(self, worker_ids: List[str]) -> None:
+        self._subscribe_kv_events_for_workers(worker_ids)
+        self.request_debounced_health_refresh(worker_ids)
+
+    def _handle_discovered_workers_removed(self, worker_ids: List[str]) -> None:
+        self._remove_workers_from_policies(worker_ids)
+        for worker_id in worker_ids:
+            self.kv_cache_state.clear_worker(worker_id)
+        if self.kv_event_subscriber is not None:
+            self.kv_event_subscriber.remove_workers(worker_ids)
+
+    def _subscribe_kv_events_for_workers(self, worker_ids: List[str]) -> None:
+        if (not self.config.kv_events_config.enabled
+                or self.kv_event_subscriber is None):
+            return
+
+        worker_id_set = set(worker_ids)
+        if not worker_id_set:
+            return
+
+        endpoint_map = build_worker_event_endpoints(
+            self.config,
+            self.worker_registry.get_all(),
+        )
+        endpoints = [
+            endpoint for endpoint in endpoint_map
+            if endpoint.worker_id in worker_id_set
+        ]
+        if endpoints:
+            self.kv_event_subscriber.add_endpoints(endpoints)
+
     async def run(self):
         self._event_loop = asyncio.get_running_loop()
         tasks = []

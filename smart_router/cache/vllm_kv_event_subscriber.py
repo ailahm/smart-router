@@ -33,34 +33,94 @@ class KVEventSubscriber:
     def __init__(self, state: KVCacheState,
                  endpoints: Iterable[WorkerEventEndpoint]) -> None:
         self.state = state
-        self.endpoints = list(endpoints)
+        self._endpoints_by_worker: dict[str, WorkerEventEndpoint] = {
+            endpoint.worker_id: endpoint
+            for endpoint in endpoints
+        }
+        self.endpoints = list(self._endpoints_by_worker.values())
         self._ctx: Optional[Any] = None
-        self._tasks: list[asyncio.Task] = []
+        self._tasks_by_worker: dict[str, asyncio.Task] = {}
         self._stopped = asyncio.Event()
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     def start(self) -> None:
-        if self._tasks:
+        if self._ctx is not None:
             return
         import zmq.asyncio
 
+        self._loop = asyncio.get_running_loop()
         self._ctx = zmq.asyncio.Context()
         self._stopped.clear()
         logger.info("[KV-EVENT-SUBSCRIBER] starting endpoint_count=%d",
                     len(self.endpoints))
         for endpoint in self.endpoints:
-            task = asyncio.create_task(self._run_endpoint(endpoint))
-            self._tasks.append(task)
+            self._start_endpoint(endpoint)
 
     async def stop(self) -> None:
         self._stopped.set()
-        for task in self._tasks:
+        for task in self._tasks_by_worker.values():
             task.cancel()
-        if self._tasks:
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-        self._tasks = []
+        if self._tasks_by_worker:
+            await asyncio.gather(*self._tasks_by_worker.values(),
+                                 return_exceptions=True)
+        self._tasks_by_worker = {}
         if self._ctx is not None:
             self._ctx.term()
             self._ctx = None
+        self._loop = None
+
+    def add_endpoints(self, endpoints: Iterable[WorkerEventEndpoint]) -> None:
+        endpoints = list(endpoints)
+        if not endpoints:
+            return
+        self._call_on_loop(lambda: self._add_endpoints_now(endpoints))
+
+    def remove_workers(self, worker_ids: Iterable[str]) -> None:
+        worker_ids = list(worker_ids)
+        if not worker_ids:
+            return
+        self._call_on_loop(lambda: self._remove_workers_now(worker_ids))
+
+    def _call_on_loop(self, callback) -> None:
+        loop = self._loop
+        if loop is not None and not loop.is_closed():
+            loop.call_soon_threadsafe(callback)
+            return
+        callback()
+
+    def _add_endpoints_now(self,
+                           endpoints: Iterable[WorkerEventEndpoint]) -> None:
+        for endpoint in endpoints:
+            if endpoint.worker_id in self._endpoints_by_worker:
+                continue
+            self._endpoints_by_worker[endpoint.worker_id] = endpoint
+            self.endpoints = list(self._endpoints_by_worker.values())
+            logger.info(
+                "[KV-EVENT-SUBSCRIBER] adding worker=%s endpoint=%s topic=%r",
+                endpoint.worker_id,
+                endpoint.endpoint,
+                endpoint.topic,
+            )
+            if self._ctx is not None and not self._stopped.is_set():
+                self._start_endpoint(endpoint)
+
+    def _remove_workers_now(self, worker_ids: Iterable[str]) -> None:
+        for worker_id in worker_ids:
+            endpoint = self._endpoints_by_worker.pop(worker_id, None)
+            task = self._tasks_by_worker.pop(worker_id, None)
+            if task is not None:
+                task.cancel()
+            if endpoint is not None:
+                logger.info(
+                    "[KV-EVENT-SUBSCRIBER] removing worker=%s endpoint=%s",
+                    worker_id,
+                    endpoint.endpoint,
+                )
+        self.endpoints = list(self._endpoints_by_worker.values())
+
+    def _start_endpoint(self, endpoint: WorkerEventEndpoint) -> None:
+        task = asyncio.create_task(self._run_endpoint(endpoint))
+        self._tasks_by_worker[endpoint.worker_id] = task
 
     async def _run_endpoint(self, endpoint: WorkerEventEndpoint) -> None:
         import zmq
