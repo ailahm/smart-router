@@ -1,4 +1,6 @@
 from smart_router.config import SmartRouterConfig
+from smart_router.config.kv_events import KVEventsConfig
+from smart_router.config.worker import WorkerGroupConfig
 from smart_router.engine.vllm_engine import VLLMEngine
 from smart_router.worker import WorkerRegistry, WorkerType
 from smart_router.worker.factory import register_workers_for_url
@@ -14,13 +16,15 @@ class RecordingSubscriber:
 
 def test_dynamic_k8s_kv_event_subscription_uses_full_worker_endpoint_mapping():
     config = SmartRouterConfig(
-        prefill_intra_dp_size=2,
-        decode_intra_dp_size=2,
-        kv_events_enabled=True,
-        kv_events_endpoints=[
-            "tcp://10.0.0.21:5557",
-            "tcp://10.0.0.31:5657",
-        ],
+        prefill_worker_config=WorkerGroupConfig(intra_dp_size=2),
+        decode_worker_config=WorkerGroupConfig(intra_dp_size=2),
+        kv_events_config=KVEventsConfig(
+            enabled=True,
+            endpoints=[
+                "tcp://10.0.0.21:5557",
+                "tcp://10.0.0.31:5657",
+            ],
+        ),
     )
     registry = WorkerRegistry()
     register_workers_for_url(

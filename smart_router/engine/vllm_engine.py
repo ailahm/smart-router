@@ -161,7 +161,8 @@ class VLLMEngine(Engine):
             self.kv_event_subscriber.remove_workers(worker_ids)
 
     def _subscribe_kv_events_for_workers(self, worker_ids: List[str]) -> None:
-        if not self.config.kv_events_enabled or self.kv_event_subscriber is None:
+        if (not self.config.kv_events_config.enabled
+                or self.kv_event_subscriber is None):
             return
 
         worker_id_set = set(worker_ids)
